@@ -5,12 +5,110 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>公金マップ</title>
 <style>
-  /* 真っ白の1ページ。中身は意図的に空にしてある。
-     ここに何を置くかはオーナーのコメント指示で決まる(CLAUDE.md 参照)。
-     指示が無いうちは、AI 側の判断で文字・画像・機能を足さない。 */
-  html, body { margin: 0; padding: 0; background: #ffffff; }
+  /* オーナー指示 #3(Issue 3)による簡易版トップページ。
+     構成は指示 #1 で確定済みの冒頭仕様(サイト名・1行説明・対象範囲・データの時点・検索窓2つ)のみ。
+     「その下に3つ」以降は指示の続き待ちのため置いていない。外部依存(CDN・画像・フォント・fetch)なし。 */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+    background: #f5f7fa;
+    color: #1a2433;
+    line-height: 1.8;
+  }
+  .hero {
+    background: #12335e;
+    color: #ffffff;
+    padding: 40px 20px 32px;
+  }
+  .hero-inner, .main { max-width: 860px; margin: 0 auto; }
+  h1 { margin: 0 0 8px; font-size: 34px; letter-spacing: 0.06em; }
+  .tagline { margin: 0 0 18px; font-size: 15px; color: #d7e3f4; }
+  .scope {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: #eef4fb;
+  }
+  .main { padding: 28px 20px 48px; }
+  .card {
+    background: #ffffff;
+    border: 1px solid #dde4ee;
+    border-radius: 10px;
+    padding: 20px 22px;
+    margin: 0 0 20px;
+  }
+  h2 { margin: 0 0 12px; font-size: 17px; color: #12335e; }
+  .search-row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .search-box { flex: 1 1 260px; }
+  .search-box label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .search-box input {
+    width: 100%;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 14px;
+    border: 1px solid #c3cedd;
+    border-radius: 6px;
+    background: #f0f3f8;
+    color: #6b7789;
+  }
+  .prep-note { margin: 10px 0 0; font-size: 13px; color: #5a6b82; }
+  .status-line { margin: 0; font-size: 14px; }
+  .badge {
+    display: inline-block;
+    background: #fff4dd;
+    border: 1px solid #e5c98a;
+    color: #7a5b12;
+    border-radius: 999px;
+    padding: 2px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  .footer { max-width: 860px; margin: 0 auto; padding: 0 20px 32px; font-size: 12px; color: #7a8699; }
 </style>
 </head>
 <body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <h1>公金マップ</h1>
+    <p class="tagline">国の補助金・交付金の中から「特殊な事例」を、事実と数字だけで示すサイトです。良い悪いの判断や不正の断定はしません。</p>
+    <span class="scope">対象範囲:全省庁・直近3年度・1億円以上の事業 | データの時点:準備中</span>
+  </div>
+</header>
+
+<div class="main">
+
+  <div class="card">
+    <h2>検索</h2>
+    <div class="search-row">
+      <div class="search-box">
+        <label for="q-project">事業名で探す</label>
+        <input id="q-project" type="text" placeholder="準備中" disabled>
+      </div>
+      <div class="search-box">
+        <label for="q-corp">法人名で探す</label>
+        <input id="q-corp" type="text" placeholder="準備中" disabled>
+      </div>
+    </div>
+    <p class="prep-note">検索は、データの準備が完了すると使えるようになります。</p>
+  </div>
+
+  <div class="card">
+    <h2>現在の状況</h2>
+    <p class="status-line"><span class="badge">準備中</span>このサイトはいま準備中です。行政事業レビューシート(RSシステム)などの公的データの取得方法を調査しており、データがそろい次第、検索と事例の表示ができるようになります。</p>
+  </div>
+
+</div>
+
+<div class="footer">
+  <p>データ出所(予定):行政事業レビュー見える化サイト(RSシステム)/ gBizINFO / 国税庁法人番号公表サイト / jGrants・各省庁の採択公表</p>
+</div>
+
 </body>
 </html>
