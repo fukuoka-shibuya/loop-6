@@ -5,9 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>公金マップ</title>
 <style>
-  /* オーナー指示 #3(Issue 3)による簡易版トップページ。
+  /* オーナー指示 #1・#3 による簡易版トップページ。
      構成は指示 #1 で確定済みの冒頭仕様(サイト名・1行説明・対象範囲・データの時点・検索窓2つ)のみ。
-     「その下に3つ」以降は指示の続き待ちのため置いていない。外部依存(CDN・画像・フォント・fetch)なし。 */
+     「その下に3つ」以降は指示の続き待ちのため置いていない。外部依存(CDN・画像・フォント・fetch)なし。
+     検索データは site/data/ の静的ファイル(同一サイト内の script 読み込みのみ)。 */
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
@@ -52,10 +53,24 @@
     font-size: 14px;
     border: 1px solid #c3cedd;
     border-radius: 6px;
-    background: #f0f3f8;
-    color: #6b7789;
+    background: #ffffff;
+    color: #1a2433;
   }
+  .search-box input:disabled { background: #f0f3f8; color: #6b7789; }
   .prep-note { margin: 10px 0 0; font-size: 13px; color: #5a6b82; }
+  .results { margin: 14px 0 0; }
+  .results-head { font-size: 13px; color: #5a6b82; margin: 0 0 6px; }
+  .result-item {
+    border-top: 1px solid #e6ebf3;
+    padding: 10px 2px;
+    font-size: 14px;
+  }
+  .result-item .r-title { font-weight: 700; }
+  .result-item .r-sub { font-size: 12.5px; color: #5a6b82; margin-top: 2px; }
+  .r-closed {
+    display: inline-block; margin-left: 6px; padding: 0 8px; border-radius: 999px;
+    background: #f3e4e4; border: 1px solid #d3a3a3; color: #7a2a2a; font-size: 11px; font-weight: 700;
+  }
   .status-line { margin: 0; font-size: 14px; }
   .badge {
     display: inline-block;
@@ -78,7 +93,7 @@
   <div class="hero-inner">
     <h1>公金マップ</h1>
     <p class="tagline">国の補助金・交付金の中から「特殊な事例」を、事実と数字だけで示すサイトです。良い悪いの判断や不正の断定はしません。</p>
-    <span class="scope">対象範囲:全省庁・直近3年度・1億円以上の事業 | データの時点:準備中</span>
+    <span class="scope">対象範囲:全省庁・直近3年度・1億円以上の事業 | データの時点:2026年8月21日取得(執行実績は2022〜2024年度)</span>
   </div>
 </header>
 
@@ -89,26 +104,143 @@
     <div class="search-row">
       <div class="search-box">
         <label for="q-project">事業名で探す</label>
-        <input id="q-project" type="text" placeholder="準備中" disabled>
+        <input id="q-project" type="text" placeholder="読み込み中…" disabled>
       </div>
       <div class="search-box">
         <label for="q-corp">法人名で探す</label>
-        <input id="q-corp" type="text" placeholder="準備中" disabled>
+        <input id="q-corp" type="text" placeholder="読み込み中…" disabled>
       </div>
     </div>
-    <p class="prep-note">検索は、データの準備が完了すると使えるようになります。</p>
+    <p class="prep-note">2文字以上を入力すると部分一致で検索します。対象:事業 3,787件/支出先の法人 25,237件・法人番号のない支出先名 8,073件(直近3年度の執行実績のある1億円以上の事業とその支出先)。</p>
+    <div class="results" id="results"></div>
   </div>
 
   <div class="card">
     <h2>現在の状況</h2>
-    <p class="status-line"><span class="badge">準備中</span>このサイトはいま準備中です。行政事業レビューシート(RSシステム)などの公的データの取得方法を調査しており、データがそろい次第、検索と事例の表示ができるようになります。</p>
+    <p class="status-line"><span class="badge">一部公開</span>事業名・法人名の検索が使えるようになりました。個別の事例の表示は準備中です。金額は行政事業レビューシートの執行実績、法人の正式名称・所在地は国税庁法人番号公表サイトの台帳によります。</p>
   </div>
 
 </div>
 
 <div class="footer">
-  <p>データ出所(予定):行政事業レビュー見える化サイト(RSシステム)/ gBizINFO / 国税庁法人番号公表サイト / jGrants・各省庁の採択公表</p>
+  <p>データ出所:行政事業レビュー見える化サイト(RSシステム)/ 国税庁法人番号公表サイト。個別事例の裏取りには jGrants・各省庁の採択公表を用いる予定です。</p>
 </div>
+
+<script src="data/projects.js"></script>
+<script src="data/corps.js"></script>
+<script>
+(function () {
+  "use strict";
+  var qProject = document.getElementById("q-project");
+  var qCorp = document.getElementById("q-corp");
+  var resultsEl = document.getElementById("results");
+  var MAX_SHOW = 50;
+
+  if (!window.KOKIN_PROJECTS || !window.KOKIN_CORPS) {
+    qProject.placeholder = "データを読み込めませんでした";
+    qCorp.placeholder = "データを読み込めませんでした";
+    return;
+  }
+
+  function norm(s) {
+    s = String(s || "");
+    if (s.normalize) s = s.normalize("NFKC");
+    return s.toLowerCase();
+  }
+
+  function fmtYen(x) {
+    x = Number(x) || 0;
+    if (x <= 0) return "-";
+    if (x >= 1e12) {
+      var cho = Math.floor(x / 1e12);
+      var oku = Math.round((x - cho * 1e12) / 1e8);
+      if (oku >= 10000) { cho += 1; oku = 0; }
+      return cho.toLocaleString("ja-JP") + "兆" + (oku ? oku.toLocaleString("ja-JP") + "億" : "") + "円";
+    }
+    if (x >= 1e8) {
+      var o = x / 1e8;
+      var v = o >= 100 ? Math.round(o) : Math.round(o * 10) / 10;
+      return v.toLocaleString("ja-JP") + "億円";
+    }
+    if (x >= 1e4) return Math.round(x / 1e4).toLocaleString("ja-JP") + "万円";
+    return x.toLocaleString("ja-JP") + "円";
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  // 検索索引(正規化済み文字列を前計算)
+  var projIdx = window.KOKIN_PROJECTS.items.map(function (r) { return norm(r[1]); });
+  var corpIdx = window.KOKIN_CORPS.items.map(function (r) { return norm(r[1] + "/" + (r[7] || "")); });
+  var unnumIdx = window.KOKIN_CORPS.unnumbered.map(function (r) { return norm(r[0]); });
+
+  function renderProjects(q) {
+    var nq = norm(q);
+    var items = window.KOKIN_PROJECTS.items;
+    var hits = [];
+    for (var i = 0; i < items.length; i++) {
+      if (projIdx[i].indexOf(nq) !== -1) hits.push(items[i]);
+    }
+    var html = '<p class="results-head">事業名「' + esc(q) + '」の検索結果: ' + hits.length.toLocaleString("ja-JP") + "件" +
+      (hits.length > MAX_SHOW ? "(先頭" + MAX_SHOW + "件を表示)" : "") + "</p>";
+    hits.slice(0, MAX_SHOW).forEach(function (r) {
+      html += '<div class="result-item"><div class="r-title">' + esc(r[1]) + "</div>" +
+        '<div class="r-sub">' + esc(r[2]) + (r[3] ? "・" + esc(r[3]) : "") +
+        " | 執行額 2022年度: " + fmtYen(r[4]) + " / 2023年度: " + fmtYen(r[5]) + " / 2024年度: " + fmtYen(r[6]) + "</div></div>";
+    });
+    resultsEl.innerHTML = html;
+  }
+
+  function renderCorps(q) {
+    var nq = norm(q);
+    var items = window.KOKIN_CORPS.items;
+    var unnum = window.KOKIN_CORPS.unnumbered;
+    var hits = [], uhits = [];
+    for (var i = 0; i < items.length; i++) {
+      if (corpIdx[i].indexOf(nq) !== -1) hits.push(items[i]);
+    }
+    for (var j = 0; j < unnum.length; j++) {
+      if (unnumIdx[j].indexOf(nq) !== -1) uhits.push(unnum[j]);
+    }
+    var total = hits.length + uhits.length;
+    var html = '<p class="results-head">法人名「' + esc(q) + '」の検索結果: ' + total.toLocaleString("ja-JP") + "件" +
+      (total > MAX_SHOW ? "(先頭" + MAX_SHOW + "件を表示)" : "") + "</p>";
+    hits.slice(0, MAX_SHOW).forEach(function (r) {
+      html += '<div class="result-item"><div class="r-title">' + esc(r[1]) +
+        (r[4] ? '<span class="r-closed">閉鎖済み</span>' : "") + "</div>" +
+        '<div class="r-sub">法人番号 ' + esc(r[0]) + " | " + esc(r[2]) + esc(r[3]) +
+        " | 支出を受けた事業: " + r[5].toLocaleString("ja-JP") + "件 | 支出合計: " + fmtYen(r[6]) +
+        (r[7] ? " | シート上の表記: " + esc(r[7]) : "") + "</div></div>";
+    });
+    uhits.slice(0, Math.max(0, MAX_SHOW - hits.length)).forEach(function (r) {
+      html += '<div class="result-item"><div class="r-title">' + esc(r[0]) + "</div>" +
+        '<div class="r-sub">法人番号なし | 支出を受けた事業: ' + r[1].toLocaleString("ja-JP") + "件 | 支出合計: " + fmtYen(r[2]) + "</div></div>";
+    });
+    resultsEl.innerHTML = html;
+  }
+
+  function onInput(which) {
+    return function () {
+      var q = (which === "p" ? qProject : qCorp).value.trim();
+      if (q.length < 2) {
+        resultsEl.innerHTML = q.length === 1 ? '<p class="results-head">2文字以上を入力してください。</p>' : "";
+        return;
+      }
+      if (which === "p") renderProjects(q); else renderCorps(q);
+    };
+  }
+
+  qProject.addEventListener("input", onInput("p"));
+  qCorp.addEventListener("input", onInput("c"));
+  qProject.disabled = false;
+  qCorp.disabled = false;
+  qProject.placeholder = "例:年金、道路、ワクチン";
+  qCorp.placeholder = "例:協会、株式会社、独立行政法人";
+})();
+</script>
 
 </body>
 </html>
